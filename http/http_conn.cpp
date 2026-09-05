@@ -545,7 +545,7 @@ void http_conn::process() //由线程池中的工作线程调用，这是处理H
     bool write_ret = process_write(read_ret);
     if(!write_ret)
     {
-        close_conn();
+        close_conn(); //没有移除定时器
     }
     modfd(m_epollfd, m_sockfd, EPOLLOUT); //处理完返回给客户端的内容，通知主线程m_sockfd的写就绪
 }
