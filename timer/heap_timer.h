@@ -6,15 +6,12 @@
 #include <time.h>
 using std::exception;
 
-#define BUF_SIZE 64
-
 class heap_timer;
 
 struct client_data
 {
     sockaddr_in address;
     int sockfd;
-    char buf[BUF_SIZE];
     heap_timer* timer;
 };
 
@@ -143,6 +140,9 @@ class time_heap
         void tick()
         {
             heap_timer* tmp = array[0];
+            if(!tmp)
+                return;
+            printf("timer tick\n");
             time_t cur = time(NULL);
             while(!empty())
             {

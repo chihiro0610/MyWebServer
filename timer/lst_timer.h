@@ -4,7 +4,7 @@
 #include <time.h>
 #include <netinet/in.h>
 #include <stdio.h>
-#define BUF_SIZE 64
+
 class util_timer;  //前向声明
 
 //用户数据结构：客户端socket地址、socketfd、读缓存和定时器

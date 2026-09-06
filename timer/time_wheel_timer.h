@@ -5,15 +5,12 @@
 #include <netinet/in.h>
 #include <stdio.h>
 
-#define BUF_SIZE 64
-
 class tw_timer;
 
 struct client_data
 {
     sockaddr_in address;
     int sockfd;
-    char buf[BUF_SIZE];
     tw_timer* timer;
 };
 

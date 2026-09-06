@@ -14,7 +14,7 @@
 #include "./locker/locker.h"
 #include "./threadpool/threadpool.h"
 #include "./http/http_conn.h"
-#include "./timer/lst_timer.h"
+#include "./timer/heap_timer.h"
 
 #define MAX_FD 65536
 #define MAX_EVENT_NUMBER 10000
@@ -26,7 +26,7 @@ extern int setnonblocking(int fd);
 
 //定时器相关变量
 static int pipefd[2];
-static sort_timer_lst timer_lst;
+static time_heap timer_heap(2000); //时间堆
 static int epollfd = 0;
 
 void sig_handler(int sig)
@@ -67,7 +67,7 @@ void cb_func(client_data *user_data) //定时器回调函数，删除非活动�
 
 void timer_handler()
 {
-    timer_lst.tick();
+    timer_heap.tick();
     alarm(TIMESLOT);
 }
 
@@ -173,23 +173,21 @@ int main(int argc, char* argv[])
                     users_timer[connfd].sockfd = connfd;
                     users_timer[connfd].address = client_addr;
                     //创建定时器，设置其回调函数与超时时间，然后将定时器和users_timer绑定，最后将定时器添加到timer容器中
-                    util_timer* timer = new util_timer;
+                    heap_timer* timer = new heap_timer(3*TIMESLOT);
                     timer->cb_func = cb_func;
                     timer->user_data = &users_timer[connfd];
-                    time_t cur = time(NULL);
-                    timer->expire = cur+3*TIMESLOT;
                     users_timer[connfd].timer = timer;
-                    timer_lst.add_timer(timer);
+                    timer_heap.add_timer(timer);
                 }
             }
             else if(events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
                 //如果有异常，直接关闭客户连接,并移除定时器
-                util_timer* timer = users_timer[sockfd].timer;
+                heap_timer* timer = users_timer[sockfd].timer;
                 timer->cb_func(&users_timer[sockfd]);
                 if(timer)
                 {
-                    timer_lst.del_timer(timer);
+                    timer_heap.del_timer(timer);
                 }
             }
             else if((sockfd==pipefd[0]) && (events[i].events&EPOLLIN))
@@ -225,42 +223,48 @@ int main(int argc, char* argv[])
             else if(events[i].events & EPOLLIN)
             {
                 //根据读的结果，决定将任务添加到线程池还是关闭连接
-                util_timer* timer = users_timer[sockfd].timer;
+                heap_timer* timer = users_timer[sockfd].timer;
                 if(users[sockfd].read())
                 {
                     pool->append(users+sockfd);
                     //如果有数据读写，将定时器调整延后3个TIMESLOT
                     if(timer)
                     {
-                        time_t cur = time(NULL);
-                        timer->expire = cur + 3*TIMESLOT;
+                        timer_heap.del_timer(timer);
+                        heap_timer* newtimer = new heap_timer(3*TIMESLOT);
+                        newtimer->cb_func = cb_func;
+                        newtimer->user_data = &users_timer[sockfd];
+                        users_timer[sockfd].timer = newtimer;
+                        timer_heap.add_timer(newtimer);
                         printf("adjust timer once\n");
-                        timer_lst.adjust_timer(timer);
                     }
                 }
                 else
                 {
                     timer->cb_func(&users_timer[sockfd]);
-                    timer_lst.del_timer(timer);
+                    timer_heap.del_timer(timer);
                 }
             }
             else if(events[i].events & EPOLLOUT)
             {
-                util_timer* timer = users_timer[sockfd].timer;
+                heap_timer* timer = users_timer[sockfd].timer;
                 if(!users[sockfd].write())
                 {
                     timer->cb_func(&users_timer[sockfd]);
-                    timer_lst.del_timer(timer);
+                    timer_heap.del_timer(timer);
                 }
                 else
                 {
                     //如果有数据读写，将定时器调整延后3个TIMESLOT
                     if(timer)
                     {
-                        time_t cur = time(NULL);
-                        timer->expire = cur + 3*TIMESLOT;
+                        timer_heap.del_timer(timer);
+                        heap_timer* newtimer = new heap_timer(3*TIMESLOT);
+                        newtimer->cb_func = cb_func;
+                        newtimer->user_data = &users_timer[sockfd];
+                        users_timer[sockfd].timer = newtimer;
+                        timer_heap.add_timer(newtimer);
                         printf("adjust timer once\n");
-                        timer_lst.adjust_timer(timer);
                     }
                 }
             }
