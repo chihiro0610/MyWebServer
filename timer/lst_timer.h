@@ -83,7 +83,7 @@ class sort_timer_lst
             {
                 return;
             }
-            //如果目标定时器三链表的头节点，则将该定时器从链表中取出并重新插入
+            //如果目标定时器是链表的头节点，则将该定时器从链表中取出并重新插入
             if(timer==head)
             {
                 head = head->next;
@@ -171,6 +171,15 @@ class sort_timer_lst
         {
             util_timer* prev = lst_head;
             util_timer* tmp = prev->next;
+            //如果目标定时器的超时时间大于所有定时器，则将目标定时器插入链表尾部
+            if(timer->expire>=tail->expire)
+            {
+                tail->next = timer;
+                timer->prev = tail;
+                timer->next = NULL;
+                tail = timer;
+                return;
+            }
             while(tmp)
             {
                 if(timer->expire < tmp->expire)
